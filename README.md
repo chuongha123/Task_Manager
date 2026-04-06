@@ -1,34 +1,50 @@
 # Task Manager
 
-Script Python nho de tim kiem va loc cac tien trinh dang chay tren may bang `psutil`.
+Script Python dùng để theo dõi tài nguyên hệ thống (CPU/RAM), lọc tiến trình và gửi cảnh báo lên Discord khi vượt ngưỡng.
 
-## Tinh nang
+## Tính năng
 
-- Loc theo ten tien trinh (`ten_chua`)
-- Loc theo nguong CPU toi thieu (`cpu_min`)
-- Loc theo nguong RAM toi thieu (`ram_min`)
-- Bo qua cac tien trinh khong the truy cap hoac da ket thuc
+- Theo dõi CPU và RAM theo thời gian thực
+- Chỉ gửi cảnh báo khi CPU hoặc RAM vượt ngưỡng cấu hình (mặc định 80%)
+- Lọc tiến trình theo tên, mức CPU và mức RAM
+- Tự ghi trạng thái mới nhất vào `task_output.txt`
 
-## Cai dat
+## Cài đặt
 
 ```bash
 python3 -m venv venv
+```
+
+Chọn **một** lệnh activate phù hợp hệ điều hành:
+
+```bash
+# Linux/macOS
 source venv/bin/activate
+
+# Windows PowerShell
+.\venv\Scripts\Activate.ps1
+```
+
+Sau đó cài thư viện:
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Chay chuong trinh
+## Chạy chương trình
 
 ```bash
 python Task_Manager.py
 ```
 
-## Ghi chu ve moi truong
+## Ghi chú môi trường
 
-Neu gap loi `ModuleNotFoundError: No module named 'psutil'`, hay dam bao:
+Nếu gặp lỗi `ModuleNotFoundError: No module named 'psutil'`, hãy kiểm tra:
 
-- Ban da `source venv/bin/activate`
-- Hoac chay truc tiep dung interpreter:
+- Đã activate đúng môi trường `venv` theo hệ điều hành
+- Hoặc chạy trực tiếp đúng interpreter của `venv`
+
+Ví dụ:
 
 ```bash
 venv/bin/python Task_Manager.py
