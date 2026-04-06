@@ -17,27 +17,30 @@ def tim_kiem_tien_trinh(ten_chua=None, cpu_min=0, ram_min=0):
         try:
             # Lấy thông tin của từng tiến trình
             thong_tin = proc.info
+            ten_tien_trinh = thong_tin.get('name') or ""
+            cpu_percent = float(thong_tin.get('cpu_percent') or 0.0)
+            ram_percent = float(thong_tin.get('memory_percent') or 0.0)
             
             # --- BẮT ĐẦU LỌC ---
             # 1. Lọc theo tên (nếu có từ khóa)
-            if ten_chua and ten_chua.lower() not in thong_tin['name'].lower():
+            if ten_chua and ten_chua.lower() not in ten_tien_trinh.lower():
                 continue
                 
             # 2. Lọc theo CPU
-            if thong_tin['cpu_percent'] < cpu_min:
+            if cpu_percent < cpu_min:
                 continue
                 
             # 3. Lọc theo RAM
-            if thong_tin['memory_percent'] < ram_min:
+            if ram_percent < ram_min:
                 continue
             # --- KẾT THÚC LỌC ---
             
             # Nếu thỏa mãn tất cả, thêm vào danh sách kết quả
             ket_qua.append({
                 'pid': thong_tin['pid'],
-                'name': thong_tin['name'],
-                'cpu_percent': thong_tin['cpu_percent'],
-                'ram_percent': thong_tin['memory_percent']
+                'name': ten_tien_trinh or "<unknown>",
+                'cpu_percent': cpu_percent,
+                'ram_percent': ram_percent
             })
             
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
