@@ -1,10 +1,12 @@
 """Task monitor realtime: chỉ cảnh báo khi CPU/RAM vượt ngưỡng."""
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import psutil
@@ -14,17 +16,36 @@ MAX_DISCORD_CONTENT_LENGTH = 1900
 CHECK_INTERVAL_SECONDS = 5
 ALERT_THRESHOLD_PERCENT = 80.0
 
-DISCORD_WEBHOOK_CONFIG = {
-    "application_id": None,
-    "avatar": None,
-    "channel_id": "1368953370706051246",
-    "guild_id": "1118380553993990175",
-    "id": "1368953476633329705",
-    "name": "Captain Hook",
-    "type": 1,
-    "token": "dQQTrK9KsRGdMAwjfjsXkkgIfPj4axgT7qYfoW80XROMl8pXLY8Xu13lfXorqyDJ0bMl",
-    "url": "https://discord.com/api/webhooks/1368953476633329705/dQQTrK9KsRGdMAwjfjsXkkgIfPj4axgT7qYfoW80XROMl8pXLY8Xu13lfXorqyDJ0bMl",
-}
+ENV_FILE_PATH = ".env"
+
+
+def nap_env(path: str = ENV_FILE_PATH) -> None:
+    """Nạp biến môi trường từ file .env nếu file tồn tại."""
+    env_path = Path(path)
+    if not env_path.exists():
+        return
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        dong = line.strip()
+        if not dong or dong.startswith("#") or "=" not in dong:
+            continue
+        key, value = dong.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def tao_webhook_config_tu_env() -> dict[str, Any]:
+    """Tạo webhook config từ biến môi trường."""
+    return {
+        "url": os.getenv("DISCORD_WEBHOOK_URL", "").strip(),
+        "id": os.getenv("DISCORD_WEBHOOK_ID", "").strip(),
+        "token": os.getenv("DISCORD_WEBHOOK_TOKEN", "").strip(),
+        "channel_id": os.getenv("DISCORD_CHANNEL_ID", "").strip(),
+        "guild_id": os.getenv("DISCORD_GUILD_ID", "").strip(),
+        "name": os.getenv("DISCORD_WEBHOOK_NAME", "").strip(),
+    }
 
 
 def lay_webhook_url(config: dict[str, Any]) -> str:
@@ -130,9 +151,9 @@ def ghi_file(path: str, noi_dung: str) -> None:
 
 def monitor_realtime(threshold: float, interval_seconds: int, max_cycles: int | None = None) -> None:
     """Theo dõi realtime và chỉ gửi cảnh báo khi CPU/RAM vượt ngưỡng."""
-    webhook_url = lay_webhook_url(DISCORD_WEBHOOK_CONFIG)
+    webhook_url = lay_webhook_url(tao_webhook_config_tu_env())
     if not webhook_url:
-        print("Gửi Discord thất bại: thiếu webhook URL.")
+        print("Gửi Discord thất bại: thiếu webhook URL (kiểm tra file .env).")
         return
 
     da_canh_bao = False
@@ -171,6 +192,7 @@ def monitor_realtime(threshold: float, interval_seconds: int, max_cycles: int | 
 
 def main() -> None:
     """Entry point chạy monitor realtime."""
+    nap_env()
     print(
         "Bat dau giam sat realtime. "
         f"Chi gui Discord khi CPU hoac RAM >= {ALERT_THRESHOLD_PERCENT:.1f}%."

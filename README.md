@@ -31,10 +31,18 @@ Sau đó cài thư viện:
 pip install -r requirements.txt
 ```
 
+Tạo file cấu hình môi trường:
+
+```bash
+cp .env.example .env
+```
+
+Sau đó mở `.env` và điền webhook Discord của bạn.
+
 ## Chạy chương trình
 
 ```bash
-python task_manager.py
+python Task_Manager.py
 ```
 
 ## Ghi chú môi trường
