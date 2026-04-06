@@ -50,7 +50,9 @@ def tao_webhook_config_tu_env() -> dict[str, Any]:
     }
 
 
-def lay_report_threshold(default_threshold: float = DEFAULT_REPORT_THRESHOLD_PERCENT) -> float:
+def lay_report_threshold(
+    default_threshold: float = DEFAULT_REPORT_THRESHOLD_PERCENT,
+) -> float:
     """Lay nguong report tu .env; fallback ve gia tri mac dinh."""
     raw = os.getenv("REPORT_THRESHOLD_PERCENT") or os.getenv("ALERT_THRESHOLD_PERCENT")
     if raw is None:
@@ -60,6 +62,17 @@ def lay_report_threshold(default_threshold: float = DEFAULT_REPORT_THRESHOLD_PER
     except ValueError:
         return default_threshold
     return max(0.0, min(100.0, nguong))
+
+
+def lay_top_report_process_count(default_count: int = TOP_REPORT_PROCESS_COUNT) -> int:
+    """Lay so luong tien trinh can report tu .env; fallback ve gia tri mac dinh."""
+    raw = os.getenv("TOP_REPORT_PROCESS_COUNT")
+    if not raw:
+        return default_count
+    try:
+        value = int(raw)
+    except ValueError:
+        return default_count
 
 
 def lay_alert_mode(default_mode: str = DEFAULT_ALERT_MODE) -> str:
@@ -185,16 +198,24 @@ def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
     return ds_tien_trinh
 
 
-def lay_top_cpu(ds_tien_trinh: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+def lay_top_cpu(
+    ds_tien_trinh: list[dict[str, Any]], limit: int = 5
+) -> list[dict[str, Any]]:
     """Xep hang top process theo CPU (quy doi tren toan he thong)."""
     return sorted(
         ds_tien_trinh,
-        key=lambda p: (p["cpu_percent_system_share"], p["cpu_percent"], p["ram_percent"]),
+        key=lambda p: (
+            p["cpu_percent_system_share"],
+            p["cpu_percent"],
+            p["ram_percent"],
+        ),
         reverse=True,
     )[:limit]
 
 
-def lay_top_ram(ds_tien_trinh: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
+def lay_top_ram(
+    ds_tien_trinh: list[dict[str, Any]], limit: int = 5
+) -> list[dict[str, Any]]:
     """Xep hang top process theo RAM."""
     return sorted(
         ds_tien_trinh,
@@ -288,6 +309,7 @@ def monitor_realtime(
     alert_mode: str = DEFAULT_ALERT_MODE,
     alert_cooldown_seconds: int = DEFAULT_ALERT_COOLDOWN_SECONDS,
     alert_delta_percent: float = DEFAULT_ALERT_DELTA_PERCENT,
+    top_report_process_count: int = TOP_REPORT_PROCESS_COUNT,
 ) -> None:
     """Theo dõi realtime và chỉ gửi cảnh báo khi CPU/RAM vượt ngưỡng."""
     webhook_url = lay_webhook_url(tao_webhook_config_tu_env())
@@ -303,8 +325,8 @@ def monitor_realtime(
     while True:
         cpu_percent, ram_percent, ram_used_gb, ram_total_gb = lay_so_lieu_he_thong()
         du_lieu_tien_trinh = lay_du_lieu_tien_trinh()
-        top_cpu = lay_top_cpu(du_lieu_tien_trinh, limit=TOP_REPORT_PROCESS_COUNT)
-        top_ram = lay_top_ram(du_lieu_tien_trinh, limit=TOP_REPORT_PROCESS_COUNT)
+        top_cpu = lay_top_cpu(du_lieu_tien_trinh, limit=top_report_process_count)
+        top_ram = lay_top_ram(du_lieu_tien_trinh, limit=top_report_process_count)
         vuot_nguong = cpu_percent >= threshold or ram_percent >= threshold
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         dong_trang_thai = [
@@ -372,6 +394,7 @@ def main() -> None:
     """Entry point chạy monitor realtime."""
     nap_env()
     report_threshold = lay_report_threshold()
+    top_report_process_count = lay_top_report_process_count()
     alert_mode = lay_alert_mode()
     alert_cooldown_seconds = lay_alert_cooldown()
     alert_delta_percent = lay_alert_delta()
@@ -394,6 +417,7 @@ def main() -> None:
             alert_mode=alert_mode,
             alert_cooldown_seconds=alert_cooldown_seconds,
             alert_delta_percent=alert_delta_percent,
+            top_report_process_count=top_report_process_count,
         )
     except KeyboardInterrupt:
         print("\nDa dung monitor.")
