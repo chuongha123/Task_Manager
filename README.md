@@ -34,7 +34,7 @@ pip install -r requirements.txt
 ## Chạy chương trình
 
 ```bash
-python Task_Manager.py
+python task_manager.py
 ```
 
 ## Ghi chú môi trường
