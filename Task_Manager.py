@@ -3,7 +3,7 @@
 import os
 import time
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 
 import psutil
@@ -187,17 +187,19 @@ def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
     time.sleep(sample_seconds)
 
     ds_tien_trinh: list[dict[str, Any]] = []
-    for proc in psutil.process_iter(["pid", "name", "memory_percent"]):
+    for proc in psutil.process_iter(["pid", "name", "memory_percent", "exe"]):
         try:
             thong_tin = proc.info
             cpu_percent = float(proc.cpu_percent(interval=None) or 0.0)
             ram_percent = float(thong_tin.get("memory_percent") or 0.0)
             ram_mb = float(proc.memory_info().rss / (1024**2))
             ten_tien_trinh = str(thong_tin.get("name") or "<unknown>")
+            exe_path = str(thong_tin.get("exe") or "").strip()
             ds_tien_trinh.append(
                 {
                     "pid": thong_tin.get("pid"),
                     "name": ten_tien_trinh,
+                    "exe_path": exe_path,
                     "cpu_percent": cpu_percent,
                     "cpu_percent_system_share": cpu_percent / LOGICAL_CPU_CORES,
                     "ram_percent": ram_percent,
@@ -212,14 +214,17 @@ def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
 
 
 def group_tien_trinh_theo_ung_dung(ds_tien_trinh: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Gom nhieu PID cung ten thanh mot ung dung."""
+    """Gom PID theo executable path; fallback ve ten process."""
     grouped: dict[str, dict[str, Any]] = {}
     for p in ds_tien_trinh:
         ten = str(p.get("name") or "<unknown>")
-        key = ten.lower()
+        exe_path = str(p.get("exe_path") or "").strip()
+        key = f"exe:{exe_path.lower()}" if exe_path else f"name:{ten.lower()}"
+        nhan_ung_dung = PurePath(exe_path).name if exe_path else ten
         if key not in grouped:
             grouped[key] = {
-                "name": ten,
+                "name": nhan_ung_dung,
+                "exe_path": exe_path,
                 "cpu_percent": 0.0,
                 "cpu_percent_system_share": 0.0,
                 "ram_percent": 0.0,
@@ -237,7 +242,7 @@ def group_tien_trinh_theo_ung_dung(ds_tien_trinh: list[dict[str, Any]]) -> list[
         if len(g["sample_pids"]) < 3 and p.get("pid") is not None:
             g["sample_pids"].append(p["pid"])
 
-    return list(grouped.values())
+    return list[dict[str, Any]](grouped.values())
 
 
 def lay_top_cpu(
@@ -272,7 +277,7 @@ def tao_dong_top_tien_trinh(
     """Tao text cho 2 bang: top CPU va top RAM."""
     dong = [
         f"Ghi chu: CPU(process) co the >100% neu app dung nhieu core (may co {LOGICAL_CPU_CORES} core).",
-        "Top 5 ung dung chiem CPU cao nhat (da group theo ten app):",
+        "Top 5 ung dung chiem CPU cao nhat (group theo executable):",
     ]
 
     if top_cpu:
@@ -287,7 +292,7 @@ def tao_dong_top_tien_trinh(
     else:
         dong.append("  Khong co du lieu CPU.")
 
-    dong.append("Top 5 ung dung chiem RAM cao nhat (da group theo ten app):")
+    dong.append("Top 5 ung dung chiem RAM cao nhat (group theo executable):")
     if top_ram:
         for idx, p in enumerate(top_ram, start=1):
             dong.append(
