@@ -15,15 +15,15 @@ CHECK_INTERVAL_SECONDS = 5
 ALERT_THRESHOLD_PERCENT = 80.0
 
 DISCORD_WEBHOOK_CONFIG = {
-    "application_id": None,
-    "avatar": None,
-    "channel_id": "1368953370706051246",
-    "guild_id": "1118380553993990175",
-    "id": "1368953476633329705",
-    "name": "Captain Hook",
-    "type": 1,
-    "token": "dQQTrK9KsRGdMAwjfjsXkkgIfPj4axgT7qYfoW80XROMl8pXLY8Xu13lfXorqyDJ0bMl",
-    "url": "https://discord.com/api/webhooks/1368953476633329705/dQQTrK9KsRGdMAwjfjsXkkgIfPj4axgT7qYfoW80XROMl8pXLY8Xu13lfXorqyDJ0bMl",
+  "application_id": None,
+  "avatar": None,
+  "channel_id": "1490627045493964853",
+  "guild_id": "1490627044571353131",
+  "id": "1490627150372409385",
+  "name": "Spidey Bot",
+  "type": 1,
+  "token": "ViQ-R-pB5kMMDpgqHZITPMJU36OmNrJPFszxxGuPwxINUeB6t2gS3YJoJ4GP5B2-BrB6",
+  "url": "https://discord.com/api/webhooks/1490627150372409385/ViQ-R-pB5kMMDpgqHZITPMJU36OmNrJPFszxxGuPwxINUeB6t2gS3YJoJ4GP5B2-BrB6"
 }
 
 
