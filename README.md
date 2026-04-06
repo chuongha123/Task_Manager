@@ -44,6 +44,12 @@ Bạn cũng có thể chỉnh ngưỡng cảnh báo bằng biến:
 REPORT_THRESHOLD_PERCENT=80
 ```
 
+Bật/tắt gửi Discord:
+
+```bash
+ENABLE_DISCORD_ALERT=true
+```
+
 ## Chạy chương trình
 
 ```bash

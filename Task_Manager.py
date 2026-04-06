@@ -50,7 +50,9 @@ def tao_webhook_config_tu_env() -> dict[str, Any]:
     }
 
 
-def lay_report_threshold(default_threshold: float = DEFAULT_REPORT_THRESHOLD_PERCENT) -> float:
+def lay_report_threshold(
+    default_threshold: float = DEFAULT_REPORT_THRESHOLD_PERCENT,
+) -> float:
     """Lay nguong report tu .env; fallback ve gia tri mac dinh."""
     raw = os.getenv("REPORT_THRESHOLD_PERCENT") or os.getenv("ALERT_THRESHOLD_PERCENT")
     if raw is None:
@@ -60,6 +62,30 @@ def lay_report_threshold(default_threshold: float = DEFAULT_REPORT_THRESHOLD_PER
     except ValueError:
         return default_threshold
     return max(0.0, min(100.0, nguong))
+
+
+def lay_top_report_process_count(default_count: int = TOP_REPORT_PROCESS_COUNT) -> int:
+    """Lay so luong tien trinh can report tu .env; fallback ve gia tri mac dinh."""
+    raw = os.getenv("TOP_REPORT_PROCESS_COUNT")
+    if not raw:
+        return default_count
+    try:
+        value = int(raw)
+    except ValueError:
+        return default_count
+    return max(1, value)
+
+
+def lay_discord_enabled(default_enabled: bool = True) -> bool:
+    """Lay co bat/tat gui Discord tu .env."""
+    raw = (os.getenv("ENABLE_DISCORD_ALERT") or "").strip().lower()
+    if not raw:
+        return default_enabled
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    return default_enabled
 
 
 def lay_alert_mode(default_mode: str = DEFAULT_ALERT_MODE) -> str:
@@ -150,7 +176,7 @@ def lay_so_lieu_he_thong() -> tuple[float, float, float, float]:
 
 
 def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
-    """Lay du lieu process phuc vu xep hang CPU va RAM."""
+    """Lay du lieu process thô phuc vu xep hang CPU va RAM."""
     # Prime CPU counter de lan do sau co du lieu gan thuc te hon.
     for proc in psutil.process_iter(["pid", "name"]):
         try:
@@ -185,19 +211,56 @@ def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
     return ds_tien_trinh
 
 
-def lay_top_cpu(ds_tien_trinh: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
-    """Xep hang top process theo CPU (quy doi tren toan he thong)."""
+def group_tien_trinh_theo_ung_dung(ds_tien_trinh: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Gom nhieu PID cung ten thanh mot ung dung."""
+    grouped: dict[str, dict[str, Any]] = {}
+    for p in ds_tien_trinh:
+        ten = str(p.get("name") or "<unknown>")
+        key = ten.lower()
+        if key not in grouped:
+            grouped[key] = {
+                "name": ten,
+                "cpu_percent": 0.0,
+                "cpu_percent_system_share": 0.0,
+                "ram_percent": 0.0,
+                "ram_mb": 0.0,
+                "process_count": 0,
+                "sample_pids": [],
+            }
+
+        g = grouped[key]
+        g["cpu_percent"] += float(p.get("cpu_percent") or 0.0)
+        g["cpu_percent_system_share"] += float(p.get("cpu_percent_system_share") or 0.0)
+        g["ram_percent"] += float(p.get("ram_percent") or 0.0)
+        g["ram_mb"] += float(p.get("ram_mb") or 0.0)
+        g["process_count"] += 1
+        if len(g["sample_pids"]) < 3 and p.get("pid") is not None:
+            g["sample_pids"].append(p["pid"])
+
+    return list(grouped.values())
+
+
+def lay_top_cpu(
+    ds_ung_dung: list[dict[str, Any]], limit: int = 5
+) -> list[dict[str, Any]]:
+    """Xep hang top ung dung theo CPU (quy doi tren toan he thong)."""
     return sorted(
-        ds_tien_trinh,
-        key=lambda p: (p["cpu_percent_system_share"], p["cpu_percent"], p["ram_percent"]),
+        ds_ung_dung,
+        key=lambda p: (
+            p["cpu_percent_system_share"],
+            p["cpu_percent"],
+            p["ram_percent"],
+        ),
         reverse=True,
     )[:limit]
 
 
-def lay_top_ram(ds_tien_trinh: list[dict[str, Any]], limit: int = 5) -> list[dict[str, Any]]:
-    """Xep hang top process theo RAM."""
+def lay_top_ram(
+    ds_ung_dung: list[dict[str, Any]], limit: int = 5
+) -> list[dict[str, Any]]:
+    """Xep hang top ung dung theo RAM."""
     return sorted(
-        ds_tien_trinh,
+        ds_ung_dung,
         key=lambda p: (p["ram_percent"], p["ram_mb"], p["cpu_percent_system_share"]),
         reverse=True,
     )[:limit]
@@ -209,13 +272,14 @@ def tao_dong_top_tien_trinh(
     """Tao text cho 2 bang: top CPU va top RAM."""
     dong = [
         f"Ghi chu: CPU(process) co the >100% neu app dung nhieu core (may co {LOGICAL_CPU_CORES} core).",
-        "Top 5 ung dung chiem CPU cao nhat:",
+        "Top 5 ung dung chiem CPU cao nhat (da group theo ten app):",
     ]
 
     if top_cpu:
         for idx, p in enumerate(top_cpu, start=1):
             dong.append(
-                f"  {idx}. PID {p['pid']} | {p['name']} | "
+                f"  {idx}. {p['name']} | "
+                f"PIDs: {p['process_count']} ({', '.join(str(pid) for pid in p['sample_pids'])}) | "
                 f"CPU(process) {p['cpu_percent']:.1f}% | "
                 f"CPU(he thong) ~{p['cpu_percent_system_share']:.1f}% | "
                 f"RAM {p['ram_percent']:.1f}% (~{p['ram_mb']:.0f} MB)"
@@ -223,11 +287,12 @@ def tao_dong_top_tien_trinh(
     else:
         dong.append("  Khong co du lieu CPU.")
 
-    dong.append("Top 5 ung dung chiem RAM cao nhat:")
+    dong.append("Top 5 ung dung chiem RAM cao nhat (da group theo ten app):")
     if top_ram:
         for idx, p in enumerate(top_ram, start=1):
             dong.append(
-                f"  {idx}. PID {p['pid']} | {p['name']} | "
+                f"  {idx}. {p['name']} | "
+                f"PIDs: {p['process_count']} ({', '.join(str(pid) for pid in p['sample_pids'])}) | "
                 f"RAM {p['ram_percent']:.1f}% (~{p['ram_mb']:.0f} MB) | "
                 f"CPU(process) {p['cpu_percent']:.1f}% | "
                 f"CPU(he thong) ~{p['cpu_percent_system_share']:.1f}%"
@@ -288,10 +353,14 @@ def monitor_realtime(
     alert_mode: str = DEFAULT_ALERT_MODE,
     alert_cooldown_seconds: int = DEFAULT_ALERT_COOLDOWN_SECONDS,
     alert_delta_percent: float = DEFAULT_ALERT_DELTA_PERCENT,
+    top_report_process_count: int = TOP_REPORT_PROCESS_COUNT,
+    discord_enabled: bool = True,
 ) -> None:
     """Theo dõi realtime và chỉ gửi cảnh báo khi CPU/RAM vượt ngưỡng."""
     webhook_url = lay_webhook_url(tao_webhook_config_tu_env())
-    if not webhook_url:
+    if not discord_enabled:
+        print("Da tat gui Discord (ENABLE_DISCORD_ALERT=false).")
+    elif not webhook_url:
         print("Chua cau hinh webhook trong .env, se theo doi nhung khong gui Discord.")
 
     da_canh_bao = False
@@ -303,8 +372,9 @@ def monitor_realtime(
     while True:
         cpu_percent, ram_percent, ram_used_gb, ram_total_gb = lay_so_lieu_he_thong()
         du_lieu_tien_trinh = lay_du_lieu_tien_trinh()
-        top_cpu = lay_top_cpu(du_lieu_tien_trinh, limit=TOP_REPORT_PROCESS_COUNT)
-        top_ram = lay_top_ram(du_lieu_tien_trinh, limit=TOP_REPORT_PROCESS_COUNT)
+        du_lieu_ung_dung = group_tien_trinh_theo_ung_dung(du_lieu_tien_trinh)
+        top_cpu = lay_top_cpu(du_lieu_ung_dung, limit=top_report_process_count)
+        top_ram = lay_top_ram(du_lieu_ung_dung, limit=top_report_process_count)
         vuot_nguong = cpu_percent >= threshold or ram_percent >= threshold
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         dong_trang_thai = [
@@ -348,7 +418,7 @@ def monitor_realtime(
                 lan_gui_cuoi = time.time()
                 cpu_lan_gui_cuoi = cpu_percent
                 ram_lan_gui_cuoi = ram_percent
-                if webhook_url:
+                if discord_enabled and webhook_url:
                     try:
                         status, body = gui_len_discord(webhook_url, thong_diep)
                         print(f"Da gui canh bao Discord (HTTP {status}).")
@@ -372,6 +442,8 @@ def main() -> None:
     """Entry point chạy monitor realtime."""
     nap_env()
     report_threshold = lay_report_threshold()
+    top_report_process_count = lay_top_report_process_count()
+    discord_enabled = lay_discord_enabled()
     alert_mode = lay_alert_mode()
     alert_cooldown_seconds = lay_alert_cooldown()
     alert_delta_percent = lay_alert_delta()
@@ -387,6 +459,7 @@ def main() -> None:
         )
     else:
         print("Che do gui: always (dang vuot nguong la gui moi chu ky).")
+    print(f"Gui Discord: {'bat' if discord_enabled else 'tat'}.")
     try:
         monitor_realtime(
             threshold=report_threshold,
@@ -394,6 +467,8 @@ def main() -> None:
             alert_mode=alert_mode,
             alert_cooldown_seconds=alert_cooldown_seconds,
             alert_delta_percent=alert_delta_percent,
+            top_report_process_count=top_report_process_count,
+            discord_enabled=discord_enabled,
         )
     except KeyboardInterrupt:
         print("\nDa dung monitor.")
