@@ -4,7 +4,7 @@ from datetime import datetime
 import psutil
 
 # ===== CONFIG =====
-WEBHOOK_URL = "https://discord.com/api/webhooks/1368953476633329705/dQQTrK9KsRGdMAwjfjsXkkgIfPj4axgT7qYfoW80XROMl8pXLY8Xu13lfXorqyDJ0bMl".strip()
+WEBHOOK_URL = "URL".strip()
 CHECK_INTERVAL = 5
 THRESHOLD = 80.0
 
