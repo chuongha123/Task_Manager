@@ -38,6 +38,11 @@ cp .env.example .env
 ```
 
 Sau đó mở `.env` và điền webhook Discord của bạn.
+Bạn cũng có thể chỉnh ngưỡng cảnh báo bằng biến:
+
+```bash
+REPORT_THRESHOLD_PERCENT=80
+```
 
 ## Chạy chương trình
 
