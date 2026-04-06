@@ -22,7 +22,7 @@ Chọn **một** lệnh activate phù hợp hệ điều hành:
 source venv/bin/activate
 
 # Windows PowerShell
-.\venv\Scripts\Activate.ps1
+.\venv\Scripts\activate
 ```
 
 Sau đó cài thư viện:

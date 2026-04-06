@@ -2,6 +2,7 @@
 
 import os
 import time
+import ctypes
 from datetime import datetime
 from pathlib import Path, PurePath
 from typing import Any
@@ -11,7 +12,7 @@ import requests
 
 OUTPUT_FILE = "task_output.txt"
 MAX_DISCORD_CONTENT_LENGTH = 1900
-CHECK_INTERVAL_SECONDS = 5
+CHECK_INTERVAL_SECONDS = 2
 DEFAULT_REPORT_THRESHOLD_PERCENT = 80.0
 DEFAULT_ALERT_MODE = "smart"
 DEFAULT_ALERT_COOLDOWN_SECONDS = 60
@@ -19,6 +20,14 @@ DEFAULT_ALERT_DELTA_PERCENT = 5.0
 LOGICAL_CPU_CORES = psutil.cpu_count(logical=True) or 1
 TOP_REPORT_PROCESS_COUNT = 2
 ENV_FILE_PATH = ".env"
+IS_WINDOWS = os.name == "nt"
+WINDOWS_PROCESS_NAMES = {
+    "system idle process",
+    "system",
+    "registry",
+    "memory compression",
+    "secure system",
+}
 
 
 def nap_env(path: str = ENV_FILE_PATH) -> None:
@@ -187,22 +196,38 @@ def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
     time.sleep(sample_seconds)
 
     ds_tien_trinh: list[dict[str, Any]] = []
-    for proc in psutil.process_iter(["pid", "name", "memory_percent", "exe", "cmdline"]):
+    pid_co_cua_so = lay_pid_co_cua_so_hien_thi()
+    for proc in psutil.process_iter(
+        ["pid", "name", "memory_percent", "exe", "cmdline", "username"]
+    ):
         try:
             thong_tin = proc.info
             cpu_percent = float(proc.cpu_percent(interval=None) or 0.0)
             ram_percent = float(thong_tin.get("memory_percent") or 0.0)
             ram_mb = float(proc.memory_info().rss / (1024**2))
+            pid = int(thong_tin.get("pid") or 0)
             ten_tien_trinh = str(thong_tin.get("name") or "<unknown>")
             exe_path = str(thong_tin.get("exe") or "").strip()
+            username = str(thong_tin.get("username") or "").strip()
             cmdline = [
-                str(token) for token in (thong_tin.get("cmdline") or []) if str(token).strip()
+                str(token)
+                for token in (thong_tin.get("cmdline") or [])
+                if str(token).strip()
             ]
+            process_type = phan_loai_tien_trinh(
+                pid=pid,
+                ten_tien_trinh=ten_tien_trinh,
+                exe_path=exe_path,
+                username=username,
+                pid_co_cua_so=pid_co_cua_so,
+            )
             ds_tien_trinh.append(
                 {
-                    "pid": thong_tin.get("pid"),
+                    "pid": pid,
                     "name": ten_tien_trinh,
                     "exe_path": exe_path,
+                    "username": username,
+                    "process_type": process_type,
                     "cmdline": cmdline,
                     "cpu_percent": cpu_percent,
                     "cpu_percent_system_share": cpu_percent / LOGICAL_CPU_CORES,
@@ -217,16 +242,25 @@ def lay_du_lieu_tien_trinh(sample_seconds: float = 0.2) -> list[dict[str, Any]]:
     return ds_tien_trinh
 
 
-def group_tien_trinh_theo_ung_dung(ds_tien_trinh: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def group_tien_trinh_theo_ung_dung(
+    ds_tien_trinh: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Gom PID theo executable path; fallback ve ten process."""
     grouped: dict[str, dict[str, Any]] = {}
     for p in ds_tien_trinh:
         ten = str(p.get("name") or "<unknown>")
+        process_type = str(p.get("process_type") or "Background processes")
         exe_path = str(p.get("exe_path") or "").strip()
-        cmdline = [str(token) for token in (p.get("cmdline") or []) if str(token).strip()]
+        cmdline = [
+            str(token) for token in (p.get("cmdline") or []) if str(token).strip()
+        ]
         exe_name = PurePath(exe_path).name.lower() if exe_path else ""
 
-        key = f"exe:{exe_path.lower()}" if exe_path else f"name:{ten.lower()}"
+        key = (
+            f"{process_type}|exe:{exe_path.lower()}"
+            if exe_path
+            else f"{process_type}|name:{ten.lower()}"
+        )
         nhan_ung_dung = PurePath(exe_path).name if exe_path else ten
 
         # Tach nhom chi tiet hon cho Java/Python theo script/jar.
@@ -242,17 +276,18 @@ def group_tien_trinh_theo_ung_dung(ds_tien_trinh: list[dict[str, Any]]) -> list[
                         chi_tiet = token
                         break
             if chi_tiet:
-                key = f"java:{chi_tiet.lower()}"
+                key = f"{process_type}|java:{chi_tiet.lower()}"
                 nhan_ung_dung = f"java:{chi_tiet}"
         elif exe_name.startswith("python") and len(cmdline) > 1:
             script_name = PurePath(cmdline[1]).name
             if script_name:
-                key = f"python:{script_name.lower()}"
+                key = f"{process_type}|python:{script_name.lower()}"
                 nhan_ung_dung = f"python:{script_name}"
 
         if key not in grouped:
             grouped[key] = {
                 "name": nhan_ung_dung,
+                "process_type": process_type,
                 "exe_path": exe_path,
                 "cpu_percent": 0.0,
                 "cpu_percent_system_share": 0.0,
@@ -306,13 +341,13 @@ def tao_dong_top_tien_trinh(
     """Tao text cho 2 bang: top CPU va top RAM."""
     dong = [
         f"Ghi chu: CPU(process) co the >100% neu app dung nhieu core (may co {LOGICAL_CPU_CORES} core).",
-        "Top 5 ung dung chiem CPU cao nhat (group theo executable):",
+        "Top 5 ung dung chiem CPU cao nhat (group theo type -> executable):",
     ]
 
     if top_cpu:
         for idx, p in enumerate(top_cpu, start=1):
             dong.append(
-                f"  {idx}. {p['name']} | "
+                f"  {idx}. [{p['process_type']}] {p['name']} | "
                 f"PIDs: {p['process_count']} ({', '.join(str(pid) for pid in p['sample_pids'])}) | "
                 f"CPU(process) {p['cpu_percent']:.1f}% | "
                 f"CPU(he thong) ~{p['cpu_percent_system_share']:.1f}% | "
@@ -321,11 +356,11 @@ def tao_dong_top_tien_trinh(
     else:
         dong.append("  Khong co du lieu CPU.")
 
-    dong.append("Top 5 ung dung chiem RAM cao nhat (group theo executable):")
+    dong.append("Top 5 ung dung chiem RAM cao nhat (group theo type -> executable):")
     if top_ram:
         for idx, p in enumerate(top_ram, start=1):
             dong.append(
-                f"  {idx}. {p['name']} | "
+                f"  {idx}. [{p['process_type']}] {p['name']} | "
                 f"PIDs: {p['process_count']} ({', '.join(str(pid) for pid in p['sample_pids'])}) | "
                 f"RAM {p['ram_percent']:.1f}% (~{p['ram_mb']:.0f} MB) | "
                 f"CPU(process) {p['cpu_percent']:.1f}% | "
@@ -357,6 +392,60 @@ def tao_thong_diep_canh_bao(
     dong.extend(tao_dong_top_tien_trinh(top_cpu, top_ram))
 
     return "\n".join(dong)
+
+
+def lay_pid_co_cua_so_hien_thi() -> set[int]:
+    """Lay PID co cua so hien thi (xap xi nhom 'Apps' cua Task Manager)."""
+    if not IS_WINDOWS:
+        return set()
+
+    pid_set: set[int] = set()
+    user32 = ctypes.windll.user32
+    GW_OWNER = 4
+
+    enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        if user32.GetWindow(hwnd, GW_OWNER):
+            return True
+        pid = ctypes.c_ulong()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value > 0:
+            pid_set.add(int(pid.value))
+        return True
+
+    user32.EnumWindows(enum_proc(callback), 0)
+    return pid_set
+
+
+def phan_loai_tien_trinh(
+    pid: int,
+    ten_tien_trinh: str,
+    exe_path: str,
+    username: str,
+    pid_co_cua_so: set[int],
+) -> str:
+    """Phan loai process theo kieu Task Manager: Apps/Background/Windows."""
+    if pid in pid_co_cua_so:
+        return "Apps"
+
+    ten = ten_tien_trinh.strip().lower()
+    user = username.strip().lower()
+    exe_norm = exe_path.strip().replace("\\", "/").lower()
+
+    windir = os.getenv("WINDIR", "C:/Windows").replace("\\", "/").lower().rstrip("/")
+    la_windows_process = (
+        ten in WINDOWS_PROCESS_NAMES
+        or user.startswith("nt authority\\")
+        or user in {"system", "local service", "network service"}
+        or (exe_norm.startswith(f"{windir}/") if exe_norm else False)
+    )
+    if la_windows_process:
+        return "Windows processes"
+
+    return "Background processes"
 
 
 def gui_len_discord(webhook_url: str, noi_dung: str) -> tuple[int, str]:
