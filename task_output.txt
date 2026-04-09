@@ -1,8 +1,14 @@
-[2026-04-06 16:32:20] CPU: 9.3% | RAM: 94.1% (14.4/15.3 GB) | Threshold: 80.0% | Cores: 12
+[2026-04-09 14:14:31] CPU: 13.5% | RAM: 84.2% (12.9/15.3 GB) | Nguong CPU: 85.0% | Nguong RAM: 75.0% | Cores: 12
 Ghi chu: CPU(process) co the >100% neu app dung nhieu core (may co 12 core).
-Top 5 ung dung chiem CPU cao nhat:
-  1. PID 0 | System Idle Process | CPU(process) 943.9% | CPU(he thong) ~78.7% | RAM 0.0% (~0 MB)
-  2. PID 286216 | chrome.exe | CPU(process) 101.9% | CPU(he thong) ~8.5% | RAM 3.2% (~500 MB)
-Top 5 ung dung chiem RAM cao nhat:
-  1. PID 201300 | msedge.exe | RAM 3.3% (~524 MB) | CPU(process) 1.6% | CPU(he thong) ~0.1%
-  2. PID 286216 | chrome.exe | RAM 3.2% (~500 MB) | CPU(process) 101.9% | CPU(he thong) ~8.5%
+Top 5 ung dung chiem CPU cao nhat (group theo executable):
+  1. System Idle Process | PIDs: 1 (0) | CPU(process) 890.7% | CPU(he thong) ~74.2% | RAM 0.0% (~0 MB)
+  2. RobloxPlayerBeta.exe | PIDs: 1 (51884) | CPU(process) 111.4% | CPU(he thong) ~9.3% | RAM 10.4% (~1638 MB)
+  3. ManagerTaskMonitor.exe | PIDs: 2 (77168, 77836) | CPU(process) 92.1% | CPU(he thong) ~7.7% | RAM 0.4% (~58 MB)
+  4. Cursor.exe | PIDs: 12 (34348, 55112, 64116) | CPU(process) 31.3% | CPU(he thong) ~2.6% | RAM 14.4% (~2252 MB)
+  5. svchost.exe | PIDs: 83 (1520, 1536, 1608) | CPU(process) 22.3% | CPU(he thong) ~1.9% | RAM 4.3% (~675 MB)
+Top 5 ung dung chiem RAM cao nhat (group theo executable):
+  1. chrome.exe | PIDs: 19 (25384, 26236, 27024) | RAM 15.3% (~2395 MB) | CPU(process) 0.3% | CPU(he thong) ~0.0%
+  2. Cursor.exe | PIDs: 12 (34348, 55112, 64116) | RAM 14.4% (~2252 MB) | CPU(process) 31.3% | CPU(he thong) ~2.6%
+  3. RobloxPlayerBeta.exe | PIDs: 1 (51884) | RAM 10.4% (~1638 MB) | CPU(process) 111.4% | CPU(he thong) ~9.3%
+  4. svchost.exe | PIDs: 83 (1520, 1536, 1608) | RAM 4.3% (~675 MB) | CPU(process) 22.3% | CPU(he thong) ~1.9%
+  5. MemCompression | PIDs: 1 (3796) | RAM 4.0% (~624 MB) | CPU(process) 8.0% | CPU(he thong) ~0.7%
