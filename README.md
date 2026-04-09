@@ -1,264 +1,360 @@
-# Task Manager
+# Hướng Dẫn Sử Dụng (bản phân phối 2 file)
 
-Script Python theo dõi CPU/RAM, xếp hạng tiến trình và gửi cảnh báo lên Discord khi vượt ngưỡng (cấu hình qua `.env`). Tài liệu này mô tả cài đặt, chạy thường, **chạy nền khi khởi động Windows** và **gỡ chạy nền**.
+Tài liệu này dành cho người chỉ có 2 file:
 
----
+- `ManagerTaskMonitor.exe`
+- `.env`
 
-## Mục lục
-
-1. [Tính năng](#tính-năng)
-2. [Chuẩn bị](#chuẩn-bị-máy-windows)
-3. [Cài đặt nhanh](#cài-đặt-nhanh)
-4. [Chạy tay để kiểm tra](#chạy-tay-để-kiểm-tra)
-5. [Chạy nền Windows — hướng dẫn từng bước](#chạy-nền-windows--hướng-dẫn-từng-bước)
-6. [Gỡ chạy nền — hướng dẫn từng bước](#gỡ-chạy-nền--hướng-dẫn-từng-bước)
-7. [Cấu hình `.env` (tóm tắt)](#cấu-hình-env-tóm-tắt)
-8. [Bảng ghi chú ảnh minh họa](#bảng-ghi-chú-ảnh-minh-họa)
+Mục tiêu: chạy monitor CPU/RAM nền trên Windows và gửi cảnh báo Discord theo cấu hình trong `.env`.
 
 ---
 
-## Tính năng
+## 1) Chuẩn bị thư mục
 
-- Theo dõi CPU và RAM theo thời gian thực.
-- Cảnh báo Discord khi vượt ngưỡng (bật/tắt và điều chỉnh trong `.env`).
-- Ghi trạng thái mới nhất vào `task_output.txt`.
-- Tự động chạy khi đăng nhập Windows (tùy chọn, qua Task Scheduler).
+1. Tạo 1 thư mục bất kỳ, ví dụ: `D:\ManagerTaskMonitor`
+2. Copy **cả 2 file** vào cùng thư mục đó:
+   - `ManagerTaskMonitor.exe`
+   - `.env`
+3. Kiểm tra lại tên file đúng chính tả:
+   - Phải là `.env` (có dấu chấm ở đầu)
+   - Không được là `.env.txt`
 
----
-
-## Chuẩn bị (máy Windows)
-
-- **Windows 10/11.**
-- **Python** từ [python.org](https://www.python.org/downloads/) — khi cài nhớ **tích “Add python.exe to PATH”**.
-
-> **Ghi chú ảnh:** Thư mục `docs/images/`, tên file `01-python-install-add-path.png` — màn hình trình cài Python, ô *Add python.exe to PATH* đang được chọn.
+Gợi ý: bật hiện file ẩn trong Explorer để dễ thấy file bắt đầu bằng dấu chấm.
 
 ---
 
-## Cài đặt nhanh
+## 2) Cấu hình `.env`
 
-Giả sử project nằm tại `D:\Desktop\Manager` (đổi đúng đường dẫn của bạn).
+Bạn có thể sửa `.env` bằng Notepad/VS Code. Mỗi lần sửa xong, dừng chương trình đang chạy và mở lại `.exe` để áp dụng cấu hình mới.
 
-### Bước A — Mở terminal và vào thư mục project
+### Mẫu cấu hình cơ bản
 
-1. Mở **Command Prompt** hoặc **PowerShell**.
-2. Chạy:
+```env
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN
 
-```bat
-cd /d D:\Desktop\Manager
+REPORT_THRESHOLD_CPU_PERCENT=85
+REPORT_THRESHOLD_RAM_PERCENT=75
+TOP_REPORT_PROCESS_COUNT=5
+
+CHECK_INTERVAL_SECONDS=5
+CPU_MEASURE_INTERVAL_SECONDS=1
+PROCESS_SAMPLE_SECONDS=0.2
+
+ENABLE_DISCORD_ALERT=true
+ALERT_MODE=smart
+ALERT_COOLDOWN_SECONDS=60
+ALERT_DELTA_PERCENT=5
 ```
 
-> **Ghi chú ảnh:** `docs/images/02-terminal-cd-manager.png` — cửa sổ terminal sau lệnh `cd`, thấy đường dẫn `Manager`.
+### Ý nghĩa các biến quan trọng
 
-### Bước B — Kiểm tra Python
+- `DISCORD_WEBHOOK_URL`: URL webhook Discord để gửi cảnh báo.
+- `REPORT_THRESHOLD_CPU_PERCENT`: ngưỡng CPU tổng (%).
+- `REPORT_THRESHOLD_RAM_PERCENT`: ngưỡng RAM tổng (%).
+- `TOP_REPORT_PROCESS_COUNT`: số ứng dụng top CPU/RAM trong nội dung cảnh báo.
+- `CHECK_INTERVAL_SECONDS`: thời gian sleep giữa 2 vòng monitor.
+- `ENABLE_DISCORD_ALERT`: `true/false`, bật tắt gửi Discord.
+- `ALERT_MODE`:
+  - `smart`: chỉ gửi lại khi qua cooldown hoặc biến động lớn.
+  - `always`: đang vượt ngưỡng là gửi mỗi chu kỳ.
+- `ALERT_COOLDOWN_SECONDS`: khoảng nghỉ tối thiểu giữa 2 lần gửi (chế độ smart).
+- `ALERT_DELTA_PERCENT`: biến động CPU/RAM (%), vượt giá trị này thì gửi lại (chế độ smart).
 
-```bat
-python --version
-where pythonw
-```
+### Lưu ý khi sửa `.env`
 
-Cần có phiên bản Python và đường dẫn `pythonw.exe` (dùng cho chạy nền không cửa sổ).
-
-> **Ghi chú ảnh:** `docs/images/03-python-version-where-pythonw.png` — kết quả hai lệnh trên.
-
-### Bước C — (Tùy chọn) Virtual environment
-
-```bat
-python -m venv venv
-venv\Scripts\activate
-```
-
-### Bước D — Cài thư viện
-
-```bat
-python -m pip install -r requirements.txt
-```
-
-(`requirements.txt` gồm `psutil`, `requests`.)
-
-> **Ghi chú ảnh:** `docs/images/04-pip-install-requirements.png` — pip báo *Successfully installed*.
-
-### Bước E — File `.env`
-
-1. Copy `.env.example` thành `.env` trong **cùng thư mục** với `Task_Manager.py`.
-2. Mở `.env`, điền webhook Discord và chỉnh tham số (xem mục [Cấu hình `.env`](#cấu-hình-env-tóm-tắt)).
-
-> **Ghi chú ảnh:** `docs/images/05-env-file-in-folder.png` — Explorer hiện `Task_Manager.py`, `.env`, `.env.example` cùng cấp.
+- Không cần để dấu ngoặc kép (`"`), nhưng có để cũng được.
+- Không thêm khoảng trắng trước/sau giá trị nếu có thể.
+- Nếu webhook sai, app vẫn chạy monitor nhưng không gửi được Discord.
 
 ---
 
-## Chạy tay để kiểm tra
+## 3) Chạy thủ công
 
-Trong thư mục project (đã `cd`):
+1. Double click `ManagerTaskMonitor.exe`.
+2. Ứng dụng chạy nền (không hiện cửa sổ console).
+3. Khi CPU hoặc RAM vượt ngưỡng trong `.env`, webhook Discord sẽ nhận cảnh báo.
 
-```bat
-python Task_Manager.py
+Để dừng app đang chạy:
+
+- Mở Task Manager (`Ctrl + Shift + Esc`)
+- Tìm `ManagerTaskMonitor.exe`
+- Chọn `End task`
+
+Sau đó mở lại `ManagerTaskMonitor.exe` nếu muốn chạy tiếp.
+
+---
+
+## 4) Tự động chạy khi đăng nhập Windows (đề nghị)
+
+Nếu muốn mỗi lần mở máy/đăng nhập là app tự chạy:
+
+1. Mở `Task Scheduler`
+2. Chọn `Create Task...`
+3. Tab `General`:
+   - Name: `ManagerTaskMonitor`
+   - Chọn `Run only when user is logged on`
+4. Tab `Triggers` -> `New...`:
+   - Begin the task: `At log on`
+   - Chọn user hiện tại
+5. Tab `Actions` -> `New...`:
+   - Action: `Start a program`
+   - Program/script: đường dẫn tới `ManagerTaskMonitor.exe`
+   - Start in (optional): thư mục chứa file `.exe` và `.env` (nên điền)
+6. Tab `Settings`:
+   - Cho phép restart nếu fail (nếu cần)
+7. `OK` để lưu.
+
+Kiểm tra task:
+
+- Trong `Task Scheduler Library`, tìm `ManagerTaskMonitor`
+- Right click -> `Run` để test thủ công
+- Xem cột `Last Run Result` để biết thành công hay lỗi.
+
+---
+
+## 5) Cách cập nhật cấu hình sau này
+
+Khi cần đổi webhook/ngưỡng:
+
+1. End task `ManagerTaskMonitor.exe` đang chạy
+2. Sửa file `.env`
+3. Lưu file
+4. Chạy lại `ManagerTaskMonitor.exe` (hoặc `Run` lại task trong Task Scheduler)
+
+Không cần build lại `.exe`.
+
+---
+
+## 6) Mang sang máy khác cần gì?
+
+Chỉ cần:
+
+- `ManagerTaskMonitor.exe`
+- `.env`
+
+Đặt cùng thư mục trên máy mới là chạy được.
+
+Không cần cài Python.
+
+---
+
+## 7) Xử lý sự cố nhanh
+
+### Không thấy Discord gửi cảnh báo
+
+- Kiểm tra `DISCORD_WEBHOOK_URL` đúng hay không.
+- Thử tạo webhook mới và thay lại trong `.env`.
+- Đảm bảo `ENABLE_DISCORD_ALERT=true`.
+- Đảm bảo máy có internet, không bị chặn Discord.
+
+### Đã mở exe nhưng không thấy gì
+
+- App chạy nền nên không có cửa sổ là bình thường.
+- Vào Task Manager xem có process `ManagerTaskMonitor.exe` hay không.
+
+### Đổi `.env` nhưng app không nhận
+
+- Bạn phải dừng process cũ và mở lại exe.
+- Nếu chạy qua Task Scheduler, `End` task rồi `Run` lại.
+
+### Restart máy xong không tự chạy
+
+- Kiểm tra task có trigger `At log on` đúng user.
+- Kiểm tra Action trỏ đúng đến file `ManagerTaskMonitor.exe`.
+- Kiểm tra `Start in` trùng thư mục chứa `.env`.
+
+---
+
+## 8) Khuyến nghị bảo mật
+
+- Không chia sẻ `.env` cho người không tin cậy (vì chứa webhook token).
+- Nếu lộ token, vào Discord tạo webhook mới và cập nhật lại ngay.
+
+---
+
+## 9) Tóm tắt quy trình dùng nhanh
+
+1. Để `ManagerTaskMonitor.exe` + `.env` cùng thư mục.
+2. Sửa `.env` theo nhu cầu.
+3. Chạy `ManagerTaskMonitor.exe`.
+4. Nếu muốn tự động khi đăng nhập, tạo Scheduled Task như mục 4.
+# Huong Dan Su Dung (ban phan phoi 2 file)
+
+Tai lieu nay danh cho nguoi chi co 2 file:
+
+- `ManagerTaskMonitor.exe`
+- `.env`
+
+Muc tieu: chay monitor CPU/RAM nen tren Windows va gui canh bao Discord theo cau hinh trong `.env`.
+
+---
+
+## 1) Chuan bi thu muc
+
+1. Tao 1 thu muc bat ky, vi du: `D:\ManagerTaskMonitor`
+2. Copy **ca 2 file** vao cung thu muc do:
+   - `ManagerTaskMonitor.exe`
+   - `.env`
+3. Kiem tra lai ten file dung chinh ta:
+   - Phai la `.env` (co dau cham o dau)
+   - Khong duoc la `.env.txt`
+
+Goi y: bat hien file an trong Explorer de de thay file bat dau bang dau cham.
+
+---
+
+## 2) Cau hinh `.env`
+
+Ban co the sua `.env` bang Notepad/VS Code. Moi lan sua xong, dung chuong trinh dang chay va mo lai `.exe` de ap dung cau hinh moi.
+
+### Mau cau hinh co ban
+
+```env
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/WEBHOOK_ID/WEBHOOK_TOKEN
+
+REPORT_THRESHOLD_CPU_PERCENT=85
+REPORT_THRESHOLD_RAM_PERCENT=75
+TOP_REPORT_PROCESS_COUNT=5
+
+CHECK_INTERVAL_SECONDS=5
+CPU_MEASURE_INTERVAL_SECONDS=1
+PROCESS_SAMPLE_SECONDS=0.2
+
+ENABLE_DISCORD_ALERT=true
+ALERT_MODE=smart
+ALERT_COOLDOWN_SECONDS=60
+ALERT_DELTA_PERCENT=5
 ```
 
-Bạn sẽ thấy log CPU/RAM trên terminal. **Ctrl+C** để dừng.
+### Y nghia cac bien quan trong
 
-> **Ghi chú ảnh:** `docs/images/06-run-python-task-manager.png` — terminal đang in dòng trạng thái CPU/RAM.
+- `DISCORD_WEBHOOK_URL`: URL webhook Discord de gui canh bao.
+- `REPORT_THRESHOLD_CPU_PERCENT`: nguong CPU tong (%).
+- `REPORT_THRESHOLD_RAM_PERCENT`: nguong RAM tong (%).
+- `TOP_REPORT_PROCESS_COUNT`: so ung dung top CPU/RAM trong noi dung canh bao.
+- `CHECK_INTERVAL_SECONDS`: thoi gian sleep giua 2 vong monitor.
+- `ENABLE_DISCORD_ALERT`: `true/false`, bat tat gui Discord.
+- `ALERT_MODE`:
+  - `smart`: chi gui lai khi qua cooldown hoac bien dong lon.
+  - `always`: dang vuot nguong la gui moi chu ky.
+- `ALERT_COOLDOWN_SECONDS`: khoang nghi toi thieu giua 2 lan gui (che do smart).
+- `ALERT_DELTA_PERCENT`: bien dong CPU/RAM (%), vuot gia tri nay thi gui lai (che do smart).
 
-Nếu lỗi thiếu module, chạy lại `pip install -r requirements.txt`. Nếu lỗi webhook, kiểm tra `.env`.
+### Luu y khi sua `.env`
 
----
-
-## Chạy nền Windows — hướng dẫn từng bước
-
-Mục tiêu: **không cửa sổ đen**, vẫn đọc `.env` đúng chỗ, và **tự chạy mỗi lần đăng nhập Windows**.
-
-### Phần 1 — Thử chạy nền một lần (chưa gắn khởi động)
-
-1. Mở **File Explorer**, vào thư mục project (`D:\Desktop\Manager`).
-2. **Double-click** file **`run_background.bat`**.
-
-   ![Explorer — mở run_background.bat](docs/images/07-double-click-run-background-bat.png)
-
-3. Cửa sổ có thể nháy rồi tắt — đó là bình thường (dùng `pythonw`).
-4. Mở **`task_output.txt`** trong cùng thư mục: nếu thời gian / nội dung cập nhật thì script đang chạy nền.
-
-   ![task_output.txt cập nhật sau khi chạy nền](docs/images/08-task-output-after-background-run.png)
-
-5. **Dừng** bản chạy thử: mở **Task Manager** (Ctrl+Shift+Esc) → tab **Processes** → tìm **Python** hoặc **pythonw** → **End task**.
-
-   ![Task Manager — kết thúc pythonw](docs/images/09-task-manager-end-pythonw.png)
-
-### Phần 2 — Đăng ký chạy tự động khi đăng nhập (Task Scheduler)
-
-1. Trong Explorer, tại thư mục project, tìm file **`Install-StartupTask.ps1`**.
-2. **Click phải** → **Run with PowerShell**.
-
-   ![Run with PowerShell — Install-StartupTask.ps1](docs/images/10-right-click-install-ps1-run-with-powershell.png)
-
-3. Nếu báo **execution policy** (không cho chạy script):
-
-   - Mở **PowerShell** (tìm “Windows PowerShell” trong Start).
-   - Chạy:
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
-```
-
-   - Xác nhận **Y** nếu được hỏi.
-   - Quay lại bước 2, hoặc chạy tay:
-
-```powershell
-cd D:\Desktop\Manager
-powershell -ExecutionPolicy Bypass -File ".\Install-StartupTask.ps1"
-```
-
-   ![Set-ExecutionPolicy RemoteSigned (CurrentUser)](docs/images/11-set-execution-policy-remotesigned.png)
-
-4. Khi thành công, cửa sổ in dòng kiểu: **`OK: Task 'ManagerTaskMonitor' se chay khi ban dang nhap Windows.`**
-
-   ![Output Install-StartupTask.ps1 — đăng ký thành công](docs/images/12-install-startup-script-success.png)
-
-### Phần 3 — Kiểm tra trong Task Scheduler
-
-1. Nhấn **Win + R**, gõ **`taskschd.msc`**, Enter.
-2. Cây bên trái: **Task Scheduler Library**.
-3. Tìm task tên **`ManagerTaskMonitor`**, trạng thái **Ready**.
-
-   ![Task Scheduler Library](docs/images/13-task-scheduler-library.png)
-
-   ![ManagerTaskMonitor — kích hoạt khi đăng nhập (Triggers)](docs/images/14-manager-task-monitor-selected.png)
-
-4. Khởi động lại máy hoặc **Sign out** rồi đăng nhập lại; kiểm tra `task_output.txt` có cập nhật.
+- Khong can de dau ngoac kep (`"`), nhung co de cung duoc.
+- Khong them khoang trang truoc/sau gia tri neu co the.
+- Neu webhook sai, app van chay monitor nhung khong gui duoc Discord.
 
 ---
 
-## Gỡ chạy nền — hướng dẫn từng bước
+## 3) Chay thu cong
 
-### Cách 1 — Script gỡ (khuyên dùng)
+1. Double click `ManagerTaskMonitor.exe`.
+2. Ung dung chay nen (khong hien cua so console).
+3. Khi CPU hoac RAM vuot nguong trong `.env`, webhook Discord se nhan canh bao.
 
-1. Trong Explorer, **click phải** **`Uninstall-StartupTask.ps1`** → **Run with PowerShell**.
-2. Thấy thông báo đã gỡ **`ManagerTaskMonitor`** là xong.
+De dung app dang chay:
 
-   ![Uninstall-StartupTask.ps1 — gỡ thành công](docs/images/15-uninstall-startup-ps1-success.png)
+- Mo Task Manager (`Ctrl + Shift + Esc`)
+- Tim `ManagerTaskMonitor.exe`
+- Chon `End task`
 
-### Cách 2 — Gõ lệnh trong PowerShell
-
-```powershell
-Unregister-ScheduledTask -TaskName 'ManagerTaskMonitor' -Confirm:$false
-```
-
-![Unregister-ScheduledTask trong PowerShell](docs/images/16-unregister-scheduled-task-powershell.png)
-
-### Cách 3 — Gỡ bằng giao diện Task Scheduler
-
-1. **Win + R** → `taskschd.msc`.
-2. **Task Scheduler Library** → chọn **`ManagerTaskMonitor`**.
-3. Panel bên phải: **Delete** → xác nhận.
-
-   ![Task Scheduler — xóa ManagerTaskMonitor](docs/images/17-task-scheduler-delete-task.png)
-
-### Dừng process đang chạy (không xóa lịch)
-
-Nếu chỉ muốn **tắt ngay** mà vẫn giữ task khởi động: mở **Task Manager** → End task **pythonw** như phần thử nền ở trên.
+Sau do mo lai `ManagerTaskMonitor.exe` neu muon chay tiep.
 
 ---
 
-## Cấu hình `.env` (tóm tắt)
+## 4) Tu dong chay khi dang nhap Windows (de nghi)
 
-Xem đầy đủ trong `.env.example`. Một số biến thường dùng:
+Neu muon moi lan mo may/ dang nhap la app tu chay:
 
-| Biến | Ý nghĩa |
-|------|--------|
-| `DISCORD_WEBHOOK_URL` | URL webhook (hoặc dùng ID + token như trong `.env.example`) |
-| `REPORT_THRESHOLD_PERCENT` | Ngưỡng dùng chung (%), áp cho cả CPU và RAM nếu không khai báo riêng |
-| `REPORT_THRESHOLD_CPU_PERCENT` | Ngưỡng % CPU (tùy chọn; mặc định = giá trị chung) |
-| `REPORT_THRESHOLD_RAM_PERCENT` | Ngưỡng % RAM (tùy chọn; mặc định = giá trị chung) |
-| `TOP_REPORT_PROCESS_COUNT` | Số dòng top CPU/RAM trong log / Discord |
-| `CHECK_INTERVAL_SECONDS` | Nghỉ bao lâu (giây) giữa các vòng đo |
-| `ENABLE_DISCORD_ALERT` | `true` / `false` |
-| `ALERT_MODE` | `smart` hoặc `always` |
-| `ALERT_COOLDOWN_SECONDS` | Khoảng cách tối thiểu giữa hai lần gửi Discord (chế độ smart) |
+1. Mo `Task Scheduler`
+2. Chon `Create Task...`
+3. Tab `General`:
+   - Name: `ManagerTaskMonitor`
+   - Chon `Run only when user is logged on`
+4. Tab `Triggers` -> `New...`:
+   - Begin the task: `At log on`
+   - Chon user hien tai
+5. Tab `Actions` -> `New...`:
+   - Action: `Start a program`
+   - Program/script: duong dan toi `ManagerTaskMonitor.exe`
+   - Start in (optional): thu muc chua file `.exe` va `.env` (nen dien)
+6. Tab `Settings`:
+   - Cho phep restart neu fail (neu can)
+7. `OK` de luu.
 
----
+Kiem tra task:
 
-## Bảng ghi chú ảnh minh họa
-
-- **Ảnh 7–17:** đã nhúng trực tiếp trong các mục [Chạy nền Windows](#chạy-nền-windows--hướng-dẫn-từng-bước) và [Gỡ chạy nền](#gỡ-chạy-nền--hướng-dẫn-từng-bước), lưu tại `docs/images/`.
-- **Ảnh 1–6 (tùy chọn):** có thể bổ sung sau; khi đủ file, thêm vào README cùng cách `![mô tả](docs/images/...)`.
-
-| STT | File trong `docs/images/` | Ghi chú |
-|-----|---------------------------|--------|
-| 1 | `01-python-install-add-path.png` | Tùy chọn — trình cài Python, Add to PATH |
-| 2 | `02-terminal-cd-manager.png` | Tùy chọn — terminal sau `cd` |
-| 3 | `03-python-version-where-pythonw.png` | Tùy chọn — `python --version`, `where pythonw` |
-| 4 | `04-pip-install-requirements.png` | Tùy chọn — pip cài xong |
-| 5 | `05-env-file-in-folder.png` | Tùy chọn — `.env` cùng thư mục script |
-| 6 | `06-run-python-task-manager.png` | Tùy chọn — chạy `python Task_Manager.py` |
-| 7 | `07-double-click-run-background-bat.png` | Đã nhúng — `run_background.bat` |
-| 8 | `08-task-output-after-background-run.png` | Đã nhúng — `task_output.txt` |
-| 9 | `09-task-manager-end-pythonw.png` | Đã nhúng — Task Manager |
-| 10 | `10-right-click-install-ps1-run-with-powershell.png` | Đã nhúng — Install script |
-| 11 | `11-set-execution-policy-remotesigned.png` | Đã nhúng — ExecutionPolicy |
-| 12 | `12-install-startup-script-success.png` | Đã nhúng — đăng ký OK |
-| 13 | `13-task-scheduler-library.png` | Đã nhúng — Task Scheduler |
-| 14 | `14-manager-task-monitor-selected.png` | Đã nhúng — task + Triggers |
-| 15 | `15-uninstall-startup-ps1-success.png` | Đã nhúng — gỡ bằng script |
-| 16 | `16-unregister-scheduled-task-powershell.png` | Đã nhúng — Unregister lệnh |
-| 17 | `17-task-scheduler-delete-task.png` | Đã nhúng — Delete trong GUI |
+- Trong `Task Scheduler Library`, tim `ManagerTaskMonitor`
+- Right click -> `Run` de test thu cong
+- Xem cot `Last Run Result` de biet thanh cong hay loi.
 
 ---
 
-## Xử lý sự cố nhanh
+## 5) Cach cap nhat cau hinh sau nay
 
-- **Không gửi được Discord:** kiểm tra webhook trong `.env`, `ENABLE_DISCORD_ALERT=true`.
-- **Chạy nền mà không thấy gì:** bình thường; xem `task_output.txt` hoặc tạm chạy `python Task_Manager.py` để xem lỗi.
-- **Task không chạy sau đăng nhập:** mở Task Scheduler → xem **Last Run Result** của `ManagerTaskMonitor`; kiểm tra Python vẫn trong PATH và đường dẫn project đúng (script đăng ký dùng thư mục chứa `Install-StartupTask.ps1` làm working directory).
+Khi can doi webhook/nguong:
+
+1. End task `ManagerTaskMonitor.exe` dang chay
+2. Sua file `.env`
+3. Luu file
+4. Chay lai `ManagerTaskMonitor.exe` (hoac `Run` lai task trong Task Scheduler)
+
+Khong can build lai `.exe`.
 
 ---
 
-## Chạy thủ công (Linux / macOS)
+## 6) Mang sang may khac can gi?
 
-```bash
-python3 -m venv venv
-source venv/bin/activate   # Linux/macOS
-pip install -r requirements.txt
-cp .env.example .env
-python Task_Manager.py
-```
+Chi can:
 
-Hướng dẫn **chạy nềm + Task Scheduler** trong README này chỉ áp dụng cho **Windows**.
+- `ManagerTaskMonitor.exe`
+- `.env`
+
+Dat cung thu muc tren may moi la chay duoc.
+
+Khong can cai Python.
+
+---
+
+## 7) Xu ly su co nhanh
+
+### Khong thay Discord gui canh bao
+
+- Kiem tra `DISCORD_WEBHOOK_URL` dung hay khong.
+- Thu tao webhook moi va thay lai trong `.env`.
+- Dam bao `ENABLE_DISCORD_ALERT=true`.
+- Dam bao may co internet, khong bi chan Discord.
+
+### Da mo exe nhung khong thay gi
+
+- App chay nen nen khong co cua so la binh thuong.
+- Vao Task Manager xem co process `ManagerTaskMonitor.exe` hay khong.
+
+### Doi `.env` nhung app khong nhan
+
+- Ban phai dung process cu va mo lai exe.
+- Neu chay qua Task Scheduler, `End` task roi `Run` lai.
+
+### Restart may xong khong tu chay
+
+- Kiem tra task co trigger `At log on` dung user.
+- Kiem tra Action tro dung den file `ManagerTaskMonitor.exe`.
+- Kiem tra `Start in` trung thu muc chua `.env`.
+
+---
+
+## 8) Khuyen nghi bao mat
+
+- Khong chia se `.env` cho nguoi khong tin cay (vi chua webhook token).
+- Neu lo token, vao Discord tao webhook moi va cap nhat lai ngay.
+
+---
+
+## 9) Tom tat quy trinh dung nhanh
+
+1. De `ManagerTaskMonitor.exe` + `.env` cung thu muc.
+2. Sua `.env` theo nhu cau.
+3. Chay `ManagerTaskMonitor.exe`.
+4. Neu muon tu dong khi dang nhap, tao Scheduled Task nhu muc 4.
