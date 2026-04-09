@@ -23,6 +23,7 @@ ENV_FILE_PATH = ".env"
 EMBEDDED_ENV_DEFAULTS: dict[str, str] = {}
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 def nap_env(path: str = ENV_FILE_PATH) -> None:
     """Nap bien moi truong: uu tien .env > ENV he thong > fallback trong code."""
@@ -186,6 +187,8 @@ def lay_process_sample_seconds(
     except ValueError:
         return default_seconds
     return max(0.05, value)
+=======
+>>>>>>> cb1f8c7aff1d2012a67e27fec4482d02f2fbe162
 =======
 >>>>>>> cb1f8c7aff1d2012a67e27fec4482d02f2fbe162
 
